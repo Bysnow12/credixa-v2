@@ -2,14 +2,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
-import { z } from 'zod'
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { user, error } = await requireAuth(request)
   if (error) return error
 
+  const { id } = await params  // ← await aquí
+
   const cliente = await db.cliente.findFirst({
-    where: { id: params.id, empresaId: user!.empresaId! },
+    where: { id, empresaId: user!.empresaId! },
     include: {
       referencias: true,
       documentos: true,
@@ -32,15 +36,20 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   return NextResponse.json({ success: true, data: cliente })
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { user, error } = await requireAuth(request)
   if (error) return error
+
+  const { id } = await params  // ← await aquí
 
   try {
     const body = await request.json()
 
     const cliente = await db.cliente.update({
-      where: { id: params.id, empresaId: user!.empresaId! },
+      where: { id, empresaId: user!.empresaId! },
       data: {
         nombre: body.nombre,
         apellido: body.apellido,
@@ -63,13 +72,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { user, error } = await requireAuth(request)
   if (error) return error
 
-  // Verificar que no tenga préstamos activos
+  const { id } = await params  // ← await aquí
+
   const prestamosActivos = await db.prestamo.count({
-    where: { clienteId: params.id, estado: { in: ['ACTIVO', 'VENCIDO'] } },
+    where: { clienteId: id, estado: { in: ['ACTIVO', 'VENCIDO'] } },
   })
 
   if (prestamosActivos > 0) {
@@ -80,7 +93,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   }
 
   await db.cliente.delete({
-    where: { id: params.id, empresaId: user!.empresaId! },
+    where: { id, empresaId: user!.empresaId! },
   })
 
   return NextResponse.json({ success: true, message: 'Cliente eliminado' })
