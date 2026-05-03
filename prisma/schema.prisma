@@ -26,12 +26,15 @@ enum Rol {
 model Usuario {
   id        String   @id @default(cuid())
   nombre    String
-  apellido  String 
+  apellido  String
   email     String   @unique
   password  String
   rol       String
-  activo    Boolean  @default(true)  // ← agregar esto
+  activo    Boolean  @default(true)
+  telefono  String?  // ← agregar
   createdAt DateTime @default(now())
+  ...
+}
 
   // 🔗 Relación con Empresa (IMPORTANTE)
   empresaId String?
