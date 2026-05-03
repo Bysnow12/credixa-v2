@@ -26,6 +26,7 @@ enum Rol {
 model Usuario {
   id        String   @id @default(cuid())
   nombre    String
+  apellido  String 
   email     String   @unique
   password  String
   rol       String
