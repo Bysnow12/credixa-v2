@@ -31,16 +31,12 @@ model Usuario {
   password  String
   rol       String
   activo    Boolean  @default(true)
-  telefono  String?  // ← agregar
+  telefono  String?
   createdAt DateTime @default(now())
-  ...
-}
 
-  // 🔗 Relación con Empresa (IMPORTANTE)
   empresaId String?
   empresa   Empresa? @relation(fields: [empresaId], references: [id])
 
-  // 🔗 Relaciones
   prestamosCreados Prestamo[]     @relation("PrestamoCreadoPor")
   cobrosRealizados Pago[]         @relation("PagoCobradoPor")
   vendedor         Vendedor?
