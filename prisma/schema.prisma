@@ -32,6 +32,7 @@ model Usuario {
   rol       String
   activo    Boolean  @default(true)
   telefono  String?
+  avatar    String?   // ← agregar
   createdAt DateTime @default(now())
 
   empresaId String?
