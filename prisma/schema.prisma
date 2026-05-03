@@ -1,0 +1,542 @@
+// Credixa - Sistema de Gestión de Préstamos y Créditos
+// Prisma Schema - PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// AUTENTICACIÓN Y USUARIOS
+// ─────────────────────────────────────────────
+
+enum Rol {
+  SUPERADMIN
+  ADMIN
+  EMPRESA
+  SUPERVISOR
+  SOCIO
+  VENDEDOR
+}
+
+model Usuario {
+  id        String   @id @default(cuid())
+  nombre    String
+  email     String   @unique
+  password  String
+  rol       String
+  createdAt DateTime @default(now())
+
+  // 🔗 Relación con Empresa (IMPORTANTE)
+  empresaId String?
+  empresa   Empresa? @relation(fields: [empresaId], references: [id])
+
+  // 🔗 Relaciones
+  prestamosCreados Prestamo[]     @relation("PrestamoCreadoPor")
+  cobrosRealizados Pago[]         @relation("PagoCobradoPor")
+  vendedor         Vendedor?
+  sesiones         Sesion[]
+  notificaciones   Notificacion[]
+
+  @@map("usuarios")
+}
+
+model Sesion {
+  id        String   @id @default(cuid())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  ip        String?
+  userAgent String?
+
+  @@map("sesiones")
+}
+
+// ─────────────────────────────────────────────
+// EMPRESA / ORGANIZACIÓN
+// ─────────────────────────────────────────────
+
+model Empresa {
+  id              String   @id @default(cuid())
+  nombre          String
+  logo            String?
+  rnc             String?
+  direccion       String?
+  telefono        String?
+  email           String?
+  moneda          String   @default("DOP")
+  simboloMoneda   String   @default("RD$")
+  colorPrimario   String   @default("#6366f1")
+  colorSecundario String   @default("#8b5cf6")
+  planActivo      String   @default("basic")
+  activo          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Configuración de intereses
+  tasaInteresDefault Float @default(10)
+  moraDefault        Float @default(2)
+  diasGraciaMora     Int   @default(3)
+
+  // Relaciones
+  usuarios      Usuario[]
+  clientes      Cliente[]
+  prestamos     Prestamo[]
+  vendedores    Vendedor[]
+  productos     Producto[]
+  cajaMovs      CajaMovimiento[]
+  configuracion ConfiguracionEmpresa?
+
+  @@map("empresas")
+}
+
+model ConfiguracionEmpresa {
+  id        String  @id @default(cuid())
+  empresaId String  @unique
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  // Recibos
+  reciboEncabezado  String?
+  reciboPie         String?
+  reciboLogoActivo  Boolean @default(true)
+  reciboFirmaActivo Boolean @default(false)
+
+  // Notificaciones
+  whatsappActivo Boolean @default(false)
+  whatsappToken  String?
+  whatsappNumero String?
+  emailActivo    Boolean @default(false)
+  emailSmtp      String?
+  emailPuerto    Int?
+  emailUsuario   String?
+  emailPassword  String?
+
+  // Alertas
+  alertaDiasCobro         Int     @default(1)
+  alertaMoraActiva        Boolean @default(true)
+  alertaVencimientoActiva Boolean @default(true)
+
+  @@map("configuracion_empresa")
+}
+
+// ─────────────────────────────────────────────
+// CLIENTES
+// ─────────────────────────────────────────────
+
+enum EstadoCliente {
+  ACTIVO
+  INACTIVO
+  BLOQUEADO
+  MOROSO
+}
+
+model Cliente {
+  id        String  @id @default(cuid())
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  // Datos personales
+  nombre          String
+  apellido        String
+  cedula          String?
+  foto            String?
+  fechaNacimiento DateTime?
+  genero          String?
+
+  // Contacto
+  telefono  String
+  telefono2 String?
+  email     String?
+  whatsapp  String?
+
+  // Dirección
+  direccion   String?
+  ciudad      String?
+  provincia   String?
+  pais        String  @default("DO")
+  coordenadas String?
+
+  // Referencias
+  referencias Referencia[]
+
+  // Estado
+  estado        EstadoCliente @default(ACTIVO)
+  scoreRiesgo   Int           @default(100) // 0-100
+  notasInternas String?
+
+  // Documentos
+  documentos Documento[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones financieras
+  prestamos Prestamo[]
+
+  @@map("clientes")
+}
+
+model Referencia {
+  id        String  @id @default(cuid())
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  nombre    String
+  telefono  String
+  relacion  String?
+  direccion String?
+
+  @@map("referencias")
+}
+
+model Documento {
+  id        String   @id @default(cuid())
+  clienteId String
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  tipo      String // cedula_frente, cedula_detras, contrato, etc
+  url       String
+  nombre    String
+  createdAt DateTime @default(now())
+
+  @@map("documentos")
+}
+
+// ─────────────────────────────────────────────
+// VENDEDORES
+// ─────────────────────────────────────────────
+
+model Vendedor {
+  id        String  @id @default(cuid())
+  usuarioId String  @unique
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  // Comisiones
+  comisionVenta Float @default(0) // % sobre monto prestado
+  comisionCobro Float @default(0) // % sobre cobrado
+
+  // Ruta
+  ruta String?
+  zona String?
+
+  // Estado
+  activo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prestamos   Prestamo[]
+  comisiones  Comision[]
+  ubicaciones UbicacionVendedor[]
+
+  @@map("vendedores")
+}
+
+model UbicacionVendedor {
+  id         String   @id @default(cuid())
+  vendedorId String
+  vendedor   Vendedor @relation(fields: [vendedorId], references: [id])
+  lat        Float
+  lng        Float
+  timestamp  DateTime @default(now())
+
+  @@map("ubicaciones_vendedor")
+}
+
+model Comision {
+  id String @id @default(cuid())
+
+  vendedorId String
+  vendedor   Vendedor @relation(fields: [vendedorId], references: [id])
+
+  // 🔥 RELACIÓN CON PRESTAMO (ESTO FALTABA)
+  prestamoId String?
+  prestamo   Prestamo? @relation(fields: [prestamoId], references: [id])
+
+  pagoId String?
+
+  tipo       String
+  monto      Float
+  porcentaje Float
+  pagada     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@map("comisiones")
+}
+
+// ─────────────────────────────────────────────
+// PRÉSTAMOS Y VENTAS A CRÉDITO
+// ─────────────────────────────────────────────
+
+enum TipoPrestamo {
+  PRESTAMO_PERSONAL
+  VENTA_CREDITO
+  HIPOTECARIO
+  PRENDARIO
+}
+
+enum EstadoPrestamo {
+  ACTIVO
+  PAGADO
+  VENCIDO
+  REFINANCIADO
+  CASTIGADO
+  CANCELADO
+}
+
+enum FrecuenciaPago {
+  DIARIO
+  SEMANAL
+  QUINCENAL
+  MENSUAL
+  PERSONALIZADO
+}
+
+enum TipoInteres {
+  FIJO
+  REDUCIDO
+  MANUAL
+}
+
+model Prestamo {
+  id          String    @id @default(cuid())
+  codigo      String    @unique
+  empresaId   String
+  empresa     Empresa   @relation(fields: [empresaId], references: [id])
+  clienteId   String
+  cliente     Cliente   @relation(fields: [clienteId], references: [id])
+  vendedorId  String?
+  vendedor    Vendedor? @relation(fields: [vendedorId], references: [id])
+  creadoPorId String
+  creadoPor   Usuario   @relation("PrestamoCreadoPor", fields: [creadoPorId], references: [id])
+
+  // Tipo
+  tipo   TipoPrestamo   @default(PRESTAMO_PERSONAL)
+  estado EstadoPrestamo @default(ACTIVO)
+
+  // Montos
+  capital        Float // Monto original
+  interes        Float // % de interés
+  tipoInteres    TipoInteres @default(FIJO)
+  montoInteres   Float // Interés en dinero
+  montoTotal     Float // Capital + Interés
+  montoPagado    Float       @default(0)
+  saldoPendiente Float
+
+  // Mora
+  tasaMora      Float @default(2) // % mora diaria
+  moraAcumulada Float @default(0)
+
+  // Cuotas
+  frecuencia       FrecuenciaPago @default(MENSUAL)
+  numeroCuotas     Int
+  montoCuota       Float
+  cuotasPagadas    Int            @default(0)
+  cuotasPendientes Int
+
+  // Fechas
+  fechaDesembolso  DateTime  @default(now())
+  fechaPrimerPago  DateTime
+  fechaVencimiento DateTime
+  fechaUltimoPago  DateTime?
+
+  // Producto (si es venta a crédito)
+  descripcion String?
+
+  // Notas
+  notas String?
+
+  // Refinanciación
+  prestamoOriginalId String?
+  prestamoOriginal   Prestamo?  @relation("Refinanciacion", fields: [prestamoOriginalId], references: [id])
+  refinanciaciones   Prestamo[] @relation("Refinanciacion")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  cuotas     Cuota[]
+  pagos      Pago[]
+  comisiones Comision[]
+
+  @@map("prestamos")
+}
+
+model Cuota {
+  id         String   @id @default(cuid())
+  prestamoId String
+  prestamo   Prestamo @relation(fields: [prestamoId], references: [id])
+
+  numero      Int // Número de cuota
+  monto       Float
+  montoPagado Float @default(0)
+  saldo       Float
+
+  fechaVence DateTime
+  fechaPago  DateTime?
+
+  estado String @default("PENDIENTE") // PENDIENTE | PAGADA | PARCIAL | VENCIDA
+  mora   Float  @default(0)
+
+  @@map("cuotas")
+}
+
+// ─────────────────────────────────────────────
+// PAGOS Y COBROS
+// ─────────────────────────────────────────────
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA
+  CHEQUE
+  OTRO
+}
+
+model Pago {
+  id           String   @id @default(cuid())
+  codigo       String   @unique
+  prestamoId   String
+  prestamo     Prestamo @relation(fields: [prestamoId], references: [id])
+  cobradoPorId String
+  cobradoPor   Usuario  @relation("PagoCobradoPor", fields: [cobradoPorId], references: [id])
+
+  monto        Float
+  montoCapital Float @default(0)
+  montoInteres Float @default(0)
+  montoMora    Float @default(0)
+
+  metodoPago MetodoPago @default(EFECTIVO)
+  referencia String? // Número de transferencia, etc.
+
+  notas       String?
+  comprobante String? // URL del comprobante
+
+  // Para recibo
+  reciboGenerado Boolean @default(false)
+  reciboUrl      String?
+
+  fechaPago DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@map("pagos")
+}
+
+// ─────────────────────────────────────────────
+// INVENTARIO
+// ─────────────────────────────────────────────
+
+model Categoria {
+  id        String     @id @default(cuid())
+  nombre    String
+  icono     String?
+  color     String?
+  productos Producto[]
+
+  @@map("categorias")
+}
+
+model Producto {
+  id          String     @id @default(cuid())
+  empresaId   String
+  empresa     Empresa    @relation(fields: [empresaId], references: [id])
+  categoriaId String?
+  categoria   Categoria? @relation(fields: [categoriaId], references: [id])
+
+  nombre      String
+  descripcion String?
+  imagen      String?
+  codigo      String?
+
+  precioContado Float
+  precioCredito Float
+  costo         Float?
+
+  stock       Int @default(0)
+  stockMinimo Int @default(5)
+
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("productos")
+}
+
+// ─────────────────────────────────────────────
+// CAJA Y MOVIMIENTOS
+// ─────────────────────────────────────────────
+
+enum TipoMovimiento {
+  INGRESO
+  EGRESO
+  RETIRO
+  DEPOSITO
+  GASTO
+  COMISION
+}
+
+model CajaMovimiento {
+  id        String  @id @default(cuid())
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  tipo       TipoMovimiento
+  concepto   String
+  monto      Float
+  referencia String?
+  pagoId     String?
+
+  usuarioId String
+
+  fecha     DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@map("caja_movimientos")
+}
+
+model CierreCaja {
+  id        String @id @default(cuid())
+  empresaId String
+
+  fechaInicio DateTime
+  fechaCierre DateTime
+
+  saldoInicial  Float
+  totalIngresos Float
+  totalEgresos  Float
+  totalRetiros  Float
+  saldoFinal    Float
+
+  usuarioId String
+  notas     String?
+
+  createdAt DateTime @default(now())
+
+  @@map("cierres_caja")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICACIONES
+// ─────────────────────────────────────────────
+
+model Notificacion {
+  id        String  @id @default(cuid())
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+
+  titulo  String
+  mensaje String
+  tipo    String // info | warning | error | success
+  leida   Boolean @default(false)
+  url     String?
+
+  createdAt DateTime @default(now())
+
+  @@map("notificaciones")
+}
