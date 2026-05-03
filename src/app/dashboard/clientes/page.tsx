@@ -1,32 +1,13 @@
-// src/app/dashboard/clientes/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import {
   Search, Plus, Filter, Download, Eye, Edit, Trash2,
-  ChevronLeft, ChevronRight, Phone, MapPin, Star,
-  AlertTriangle, CheckCircle, XCircle, Clock, Users
+  ChevronLeft, ChevronRight, Phone, MapPin,
+  AlertTriangle, CheckCircle, XCircle, Clock
 } from 'lucide-react'
 import { formatCurrency, formatDate, getInitials, getEstadoClienteColor, getScoreLabel } from '@/utils'
-
-// Mock data
-const mockClientes = Array.from({ length: 12 }, (_, i) => ({
-  id: `${i + 1}`,
-  nombre: ['María', 'Carlos', 'Ana', 'Pedro', 'Luisa', 'José', 'Carmen', 'Miguel', 'Rosa', 'Luis', 'Elena', 'Diego'][i],
-  apellido: ['González', 'Rodríguez', 'Martínez', 'López', 'Fernández', 'García', 'Sánchez', 'Torres', 'Ramírez', 'Cruz', 'Flores', 'Morales'][i],
-  cedula: `001-${String(i + 1).padStart(7, '0')}-1`,
-  telefono: `809-${String(Math.floor(Math.random() * 9000000) + 1000000)}`,
-  ciudad: ['Santo Domingo', 'Santiago', 'La Vega', 'San Pedro', 'La Romana'][i % 5],
-  estado: ['ACTIVO', 'ACTIVO', 'ACTIVO', 'MOROSO', 'ACTIVO', 'ACTIVO', 'INACTIVO', 'ACTIVO', 'MOROSO', 'ACTIVO', 'ACTIVO', 'BLOQUEADO'][i] as any,
-  scoreRiesgo: [92, 78, 95, 45, 88, 72, 60, 85, 38, 91, 76, 30][i],
-  totalPrestado: [480000, 350000, 290000, 260000, 240000, 180000, 150000, 320000, 200000, 410000, 270000, 130000][i],
-  totalPagado: [220000, 180000, 290000, 100000, 95000, 180000, 80000, 200000, 60000, 300000, 140000, 50000][i],
-  saldoPendiente: [260000, 170000, 0, 160000, 145000, 0, 70000, 120000, 140000, 110000, 130000, 80000][i],
-  prestamosActivos: [3, 2, 0, 1, 2, 0, 1, 2, 1, 2, 1, 1][i],
-  createdAt: new Date(2024, i % 12, (i * 3 + 1) % 28 + 1).toISOString(),
-}))
 
 const estadoIcons: Record<string, React.ElementType> = {
   ACTIVO: CheckCircle,
@@ -36,24 +17,52 @@ const estadoIcons: Record<string, React.ElementType> = {
 }
 
 export default function ClientesPage() {
-  const router = useRouter()
   const [search, setSearch] = useState('')
   const [estado, setEstado] = useState('todos')
   const [page, setPage] = useState(1)
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [clientes, setClientes] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const filtered = mockClientes.filter(c => {
+  useEffect(() => {
+    fetch('/api/clientes')
+      .then(r => r.json())
+      .then(data => setClientes(data.data || []))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const filtered = clientes.filter(c => {
     const matchSearch = search === '' ||
       `${c.nombre} ${c.apellido}`.toLowerCase().includes(search.toLowerCase()) ||
-      c.cedula.includes(search) ||
-      c.telefono.includes(search)
+      (c.cedula || '').includes(search) ||
+      (c.telefono || '').includes(search)
     const matchEstado = estado === 'todos' || c.estado === estado
     return matchSearch && matchEstado
   })
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar este cliente?')) return
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/clientes/${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (res.ok) {
+        setClientes(prev => prev.filter(c => c.id !== id))
+      } else {
+        alert(data.error || 'No se pudo eliminar el cliente')
+      }
+    } catch {
+      alert('Error de conexión')
+    } finally {
+      setDeletingId(null)
+    }
   }
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <p className="text-muted-foreground text-sm">Cargando clientes...</p>
+    </div>
+  )
 
   return (
     <div className="space-y-6">
@@ -67,19 +76,22 @@ export default function ClientesPage() {
           <button className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors">
             <Download className="h-4 w-4" /> Exportar
           </button>
-          <Link href="/dashboard/clientes/nuevo" className="flex items-center gap-2 rounded-lg brand-gradient px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 transition-opacity">
+          <Link
+            href="/dashboard/clientes/nuevo"
+            className="flex items-center gap-2 rounded-lg brand-gradient px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 transition-opacity"
+          >
             <Plus className="h-4 w-4" /> Nuevo Cliente
           </Link>
         </div>
       </div>
 
-      {/* Stats bar */}
+      {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: 'Total', value: mockClientes.length, color: 'text-foreground', bg: 'bg-muted/50' },
-          { label: 'Activos', value: mockClientes.filter(c => c.estado === 'ACTIVO').length, color: 'text-green-500', bg: 'bg-green-500/5' },
-          { label: 'Morosos', value: mockClientes.filter(c => c.estado === 'MOROSO').length, color: 'text-orange-500', bg: 'bg-orange-500/5' },
-          { label: 'Bloqueados', value: mockClientes.filter(c => c.estado === 'BLOQUEADO').length, color: 'text-red-500', bg: 'bg-red-500/5' },
+          { label: 'Total', value: clientes.length, color: 'text-foreground', bg: 'bg-muted/50' },
+          { label: 'Activos', value: clientes.filter(c => c.estado === 'ACTIVO').length, color: 'text-green-500', bg: 'bg-green-500/5' },
+          { label: 'Morosos', value: clientes.filter(c => c.estado === 'MOROSO').length, color: 'text-orange-500', bg: 'bg-orange-500/5' },
+          { label: 'Bloqueados', value: clientes.filter(c => c.estado === 'BLOQUEADO').length, color: 'text-red-500', bg: 'bg-red-500/5' },
         ].map((s) => (
           <div key={s.label} className={`rounded-xl border p-3 ${s.bg}`}>
             <p className="text-xs text-muted-foreground">{s.label}</p>
@@ -107,9 +119,7 @@ export default function ClientesPage() {
               key={e}
               onClick={() => setEstado(e)}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                estado === e
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'border hover:bg-accent'
+                estado === e ? 'bg-primary text-primary-foreground shadow-sm' : 'border hover:bg-accent'
               }`}
             >
               {e === 'todos' ? 'Todos' : e.charAt(0) + e.slice(1).toLowerCase()}
@@ -124,9 +134,6 @@ export default function ClientesPage() {
           <table className="w-full data-table">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th className="h-11 w-10 px-4">
-                  <input type="checkbox" className="rounded" />
-                </th>
                 <th className="h-11 px-4 text-left">Cliente</th>
                 <th className="h-11 px-4 text-left hidden md:table-cell">Contacto</th>
                 <th className="h-11 px-4 text-left hidden lg:table-cell">Score</th>
@@ -140,17 +147,10 @@ export default function ClientesPage() {
               {filtered.map((cliente) => {
                 const score = getScoreLabel(cliente.scoreRiesgo)
                 const estadoClass = getEstadoClienteColor(cliente.estado)
-                const EstadoIcon = estadoIcons[cliente.estado]
+                const EstadoIcon = estadoIcons[cliente.estado] || CheckCircle
+                const prestamosActivos = cliente._count?.prestamos ?? cliente.prestamosActivos ?? 0
                 return (
                   <tr key={cliente.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(cliente.id)}
-                        onChange={() => toggleSelect(cliente.id)}
-                        className="rounded"
-                      />
-                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full brand-gradient text-xs font-bold text-white">
@@ -187,9 +187,9 @@ export default function ClientesPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right hidden sm:table-cell">
-                      <p className="text-sm font-semibold">{formatCurrency(cliente.saldoPendiente)}</p>
+                      <p className="text-sm font-semibold">{formatCurrency(cliente.saldoPendiente ?? 0)}</p>
                       <p className="text-xs text-muted-foreground">
-                        {cliente.prestamosActivos} préstamo{cliente.prestamosActivos !== 1 ? 's' : ''}
+                        {prestamosActivos} préstamo{prestamosActivos !== 1 ? 's' : ''}
                       </p>
                     </td>
                     <td className="px-4 py-3">
@@ -205,13 +205,26 @@ export default function ClientesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <Link href={`/dashboard/clientes/${cliente.id}`} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors" title="Ver detalle">
+                        <Link
+                          href={`/dashboard/clientes/${cliente.id}`}
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                          title="Ver detalle"
+                        >
                           <Eye className="h-4 w-4" />
                         </Link>
-                        <Link href={`/dashboard/clientes/${cliente.id}?edit=1`} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors" title="Editar">
+                        <Link
+                          href={`/dashboard/clientes/${cliente.id}?edit=1`}
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                          title="Editar"
+                        >
                           <Edit className="h-4 w-4" />
                         </Link>
-                        <button onClick={() => { if(confirm('¿Eliminar este cliente?')) alert('Cliente eliminado') }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors" title="Eliminar">
+                        <button
+                          onClick={() => handleDelete(cliente.id)}
+                          disabled={deletingId === cliente.id}
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors disabled:opacity-50"
+                          title="Eliminar"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -219,6 +232,14 @@ export default function ClientesPage() {
                   </tr>
                 )
               })}
+
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    No se encontraron clientes
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -226,10 +247,14 @@ export default function ClientesPage() {
         {/* Pagination */}
         <div className="flex items-center justify-between border-t px-4 py-3">
           <p className="text-xs text-muted-foreground">
-            Mostrando {filtered.length} de {mockClientes.length} clientes
+            Mostrando {filtered.length} de {clientes.length} clientes
           </p>
           <div className="flex items-center gap-1">
-            <button className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-50 transition-colors" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+            <button
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-50 transition-colors"
+              disabled={page === 1}
+              onClick={() => setPage(p => p - 1)}
+            >
               <ChevronLeft className="h-4 w-4" />
             </button>
             {[1, 2, 3].map(p => (
@@ -243,7 +268,10 @@ export default function ClientesPage() {
                 {p}
               </button>
             ))}
-            <button className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent transition-colors" onClick={() => setPage(p => p + 1)}>
+            <button
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent transition-colors"
+              onClick={() => setPage(p => p + 1)}
+            >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
