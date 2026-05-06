@@ -38,12 +38,20 @@ export default function NuevoClientePage() {
       const res = await fetch('/api/clientes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           ...form,
           referencias: referenciasFiltradas,
         }),
       })
-      const data = await res.json()
+
+      let data: any = {}
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error('Error de conexión con el servidor')
+      }
+
       if (!res.ok) throw new Error(data.error || 'Error al guardar')
       router.push('/dashboard/clientes')
     } catch (err: any) {
@@ -62,7 +70,6 @@ export default function NuevoClientePage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/dashboard/clientes" className="flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-accent transition-colors">
           <ArrowLeft className="h-4 w-4" />
@@ -74,7 +81,6 @@ export default function NuevoClientePage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* Tabs */}
         <div className="flex border-b mb-6">
           {tabs.map(t => (
             <button
@@ -126,7 +132,6 @@ export default function NuevoClientePage() {
                   </select>
                 </div>
               </div>
-
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Notas internas</label>
                 <textarea
@@ -163,12 +168,12 @@ export default function NuevoClientePage() {
                   <input type="email" value={form.email} onChange={e => update('email', e.target.value)} placeholder="cliente@email.com" className={inputClass} />
                 </div>
               </div>
-
               <div className="space-y-1.5 pt-2">
-                <label className="text-sm font-medium flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-primary" /> Dirección</label>
+                <label className="text-sm font-medium flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-primary" /> Dirección
+                </label>
                 <input value={form.direccion} onChange={e => update('direccion', e.target.value)} placeholder="Calle Principal #123, Sector..." className={inputClass} />
               </div>
-
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Ciudad</label>
@@ -192,6 +197,7 @@ export default function NuevoClientePage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-semibold flex items-center gap-2">
                   <FileText className="h-4 w-4 text-primary" /> Referencias personales
+                  <span className="text-xs font-normal text-muted-foreground">(opcional)</span>
                 </h2>
                 <button type="button" onClick={addReferencia} className="flex items-center gap-1.5 rounded-lg bg-primary/10 text-primary px-3 py-1.5 text-xs font-medium hover:bg-primary/20 transition-colors">
                   <Plus className="h-3.5 w-3.5" /> Agregar referencia
@@ -202,11 +208,9 @@ export default function NuevoClientePage() {
                 <div key={i} className="rounded-xl border bg-muted/30 p-4 relative">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Referencia {i + 1}</span>
-                    {referencias.length > 1 && (
-                      <button type="button" onClick={() => removeReferencia(i)} className="rounded p-1 hover:bg-red-500/10 hover:text-red-500 transition-colors text-muted-foreground">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                    <button type="button" onClick={() => removeReferencia(i)} className="rounded p-1 hover:bg-red-500/10 hover:text-red-500 transition-colors text-muted-foreground">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
@@ -233,32 +237,41 @@ export default function NuevoClientePage() {
                   </div>
                 </div>
               ))}
+
+              <p className="text-xs text-muted-foreground text-center pt-2">
+                Puedes guardar el cliente sin agregar referencias
+              </p>
             </div>
           )}
         </div>
 
         {error && (
-          <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive mt-4">
             {error}
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center justify-between pt-4">
           <Link href="/dashboard/clientes" className="rounded-lg border px-5 py-2.5 text-sm font-medium hover:bg-accent transition-colors">
             Cancelar
           </Link>
           <div className="flex items-center gap-3">
             {tab !== 'referencias' && (
-              <button type="button" onClick={() => setTab(tab === 'personal' ? 'contacto' : 'referencias')} className="rounded-lg bg-muted px-5 py-2.5 text-sm font-medium hover:bg-accent transition-colors">
+              <button
+                type="button"
+                onClick={() => setTab(tab === 'personal' ? 'contacto' : 'referencias')}
+                className="rounded-lg bg-muted px-5 py-2.5 text-sm font-medium hover:bg-accent transition-colors"
+              >
                 Siguiente →
               </button>
             )}
-            {tab === 'referencias' && (
-              <button type="submit" disabled={loading} className="flex items-center gap-2 rounded-lg brand-gradient px-6 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-70">
-                {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Guardando...</> : <><Save className="h-4 w-4" /> Guardar cliente</>}
-              </button>
-            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center gap-2 rounded-lg brand-gradient px-6 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-70"
+            >
+              {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Guardando...</> : <><Save className="h-4 w-4" /> Guardar cliente</>}
+            </button>
           </div>
         </div>
       </form>
