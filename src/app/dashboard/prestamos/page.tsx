@@ -1,56 +1,27 @@
-// src/app/dashboard/prestamos/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
-  Search, Plus, Filter, Download, Eye, Edit, RefreshCw,
-  ChevronLeft, ChevronRight, CreditCard, AlertTriangle,
-  CheckCircle, Clock, TrendingDown, Calendar, User, DollarSign
+  Search, Plus, Download, Eye, RefreshCw,
+  ChevronLeft, ChevronRight, DollarSign
 } from 'lucide-react'
-import { formatCurrency, formatDate, getEstadoPrestamoColor, getInitials } from '@/utils'
-
-const mockPrestamos = Array.from({ length: 15 }, (_, i) => ({
-  id: `${i + 1}`,
-  codigo: `PRE-${String(i + 1).padStart(5, '0')}`,
-  cliente: {
-    nombre: ['María', 'Carlos', 'Ana', 'Pedro', 'Luisa', 'José', 'Carmen', 'Miguel', 'Rosa', 'Luis', 'Elena', 'Diego', 'Sofía', 'Rafael', 'Laura'][i],
-    apellido: ['González', 'Rodríguez', 'Martínez', 'López', 'Fernández', 'García', 'Sánchez', 'Torres', 'Ramírez', 'Cruz', 'Flores', 'Morales', 'Jiménez', 'Ruiz', 'Díaz'][i],
-    foto: null,
-  },
-  tipo: ['PRESTAMO_PERSONAL', 'VENTA_CREDITO', 'PRESTAMO_PERSONAL', 'HIPOTECARIO', 'PRESTAMO_PERSONAL'][i % 5] as any,
-  estado: ['ACTIVO', 'ACTIVO', 'VENCIDO', 'PAGADO', 'ACTIVO', 'VENCIDO', 'ACTIVO', 'PAGADO', 'ACTIVO', 'ACTIVO', 'VENCIDO', 'PAGADO', 'ACTIVO', 'ACTIVO', 'VENCIDO'][i] as any,
-  capital: [50000, 80000, 30000, 200000, 45000, 60000, 100000, 75000, 25000, 90000, 40000, 120000, 55000, 70000, 35000][i],
-  interes: [10, 12, 15, 8, 10, 12, 10, 8, 15, 10, 12, 10, 15, 10, 12][i],
-  montoCuota: [5500, 7467, 3163, 18000, 4950, 5600, 9167, 6750, 2588, 8250, 3800, 10900, 5271, 6417, 3267][i],
-  saldoPendiente: [38500, 52268, 19000, 0, 31350, 28000, 64170, 0, 12500, 57750, 24000, 0, 36900, 44917, 22870][i],
-  numeroCuotas: [12, 12, 10, 24, 12, 12, 12, 12, 10, 12, 10, 12, 12, 12, 10][i],
-  cuotasPagadas: [7, 7, 6, 24, 7, 5, 7, 12, 5, 7, 6, 12, 7, 7, 6][i],
-  frecuencia: ['MENSUAL', 'MENSUAL', 'SEMANAL', 'MENSUAL', 'QUINCENAL'][i % 5] as any,
-  fechaDesembolso: new Date(2024, i % 12, (i * 2 + 1) % 28 + 1).toISOString(),
-  fechaVencimiento: new Date(2025, (i + 1) % 12, (i * 2 + 1) % 28 + 1).toISOString(),
-  moraAcumulada: [0, 0, 4500, 0, 0, 7200, 0, 0, 0, 0, 3600, 0, 0, 0, 2800][i],
-}))
-
-const tipoLabels: Record<string, string> = {
-  PRESTAMO_PERSONAL: 'Personal',
-  VENTA_CREDITO: 'Venta Crédito',
-  HIPOTECARIO: 'Hipotecario',
-  PRENDARIO: 'Prendario',
-}
-
-const frecuenciaLabels: Record<string, string> = {
-  DIARIO: 'Diario',
-  SEMANAL: 'Semanal',
-  QUINCENAL: 'Quincenal',
-  MENSUAL: 'Mensual',
-}
+import { formatCurrency, getEstadoPrestamoColor, getInitials } from '@/utils'
 
 export default function PrestamosPage() {
   const [search, setSearch] = useState('')
   const [estado, setEstado] = useState('todos')
+  const [prestamos, setPrestamos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const filtered = mockPrestamos.filter(p => {
+  useEffect(() => {
+    fetch('/api/prestamos')
+      .then(r => r.json())
+      .then(data => setPrestamos(data.data || []))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const filtered = prestamos.filter(p => {
     const matchSearch = search === '' ||
       p.codigo.toLowerCase().includes(search.toLowerCase()) ||
       `${p.cliente.nombre} ${p.cliente.apellido}`.toLowerCase().includes(search.toLowerCase())
@@ -58,21 +29,46 @@ export default function PrestamosPage() {
     return matchSearch && matchEstado
   })
 
-  const totalCartera = filtered.reduce((sum, p) => sum + p.saldoPendiente, 0)
-  const totalMora = filtered.reduce((sum, p) => sum + p.moraAcumulada, 0)
+  const totalCartera = filtered.reduce((sum: number, p: any) => sum + p.saldoPendiente, 0)
+  const totalMora = filtered.reduce((sum: number, p: any) => sum + p.moraAcumulada, 0)
+
+  const tipoLabels: Record<string, string> = {
+    PRESTAMO_PERSONAL: 'Personal',
+    VENTA_CREDITO: 'Venta Crédito',
+    HIPOTECARIO: 'Hipotecario',
+    PRENDARIO: 'Prendario',
+  }
+
+  const frecuenciaLabels: Record<string, string> = {
+    DIARIO: 'Diario',
+    SEMANAL: 'Semanal',
+    QUINCENAL: 'Quincenal',
+    MENSUAL: 'Mensual',
+  }
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <p className="text-muted-foreground text-sm">Cargando préstamos...</p>
+    </div>
+  )
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Préstamos</h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} préstamos — Cartera: {formatCurrency(totalCartera)}</p>
+          <p className="text-sm text-muted-foreground">
+            {filtered.length} préstamos — Cartera: {formatCurrency(totalCartera)}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors">
             <Download className="h-4 w-4" /> Exportar
           </button>
-          <Link href="/dashboard/prestamos/nuevo" className="flex items-center gap-2 rounded-lg brand-gradient px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90">
+          <Link
+            href="/dashboard/prestamos/nuevo"
+            className="flex items-center gap-2 rounded-lg brand-gradient px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90"
+          >
             <Plus className="h-4 w-4" /> Nuevo Préstamo
           </Link>
         </div>
@@ -81,9 +77,9 @@ export default function PrestamosPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { label: 'Total activos', value: mockPrestamos.filter(p => p.estado === 'ACTIVO').length, sub: formatCurrency(mockPrestamos.filter(p => p.estado === 'ACTIVO').reduce((s, p) => s + p.saldoPendiente, 0)), color: 'text-blue-500' },
-          { label: 'Vencidos', value: mockPrestamos.filter(p => p.estado === 'VENCIDO').length, sub: `Mora: ${formatCurrency(totalMora)}`, color: 'text-red-500' },
-          { label: 'Pagados', value: mockPrestamos.filter(p => p.estado === 'PAGADO').length, sub: 'Completados', color: 'text-green-500' },
+          { label: 'Total activos', value: prestamos.filter(p => p.estado === 'ACTIVO').length, sub: formatCurrency(prestamos.filter(p => p.estado === 'ACTIVO').reduce((s: number, p: any) => s + p.saldoPendiente, 0)), color: 'text-blue-500' },
+          { label: 'Vencidos', value: prestamos.filter(p => p.estado === 'VENCIDO').length, sub: `Mora: ${formatCurrency(totalMora)}`, color: 'text-red-500' },
+          { label: 'Pagados', value: prestamos.filter(p => p.estado === 'PAGADO').length, sub: 'Completados', color: 'text-green-500' },
           { label: 'Cartera total', value: formatCurrency(totalCartera, ''), sub: 'Saldo pendiente', color: 'text-primary' },
         ].map((s) => (
           <div key={s.label} className="rounded-xl border bg-card p-4">
@@ -195,14 +191,26 @@ export default function PrestamosPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <Link href={`/dashboard/prestamos/${p.id}`} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors" title="Ver detalle">
+                        <Link
+                          href={`/dashboard/prestamos/${p.id}`}
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                          title="Ver detalle"
+                        >
                           <Eye className="h-4 w-4" />
                         </Link>
-                        <Link href={`/dashboard/cobros?prestamoId=${p.id}`} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors" title="Registrar pago">
+                        <Link
+                          href={`/dashboard/cobros?prestamoId=${p.id}`}
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                          title="Registrar pago"
+                        >
                           <DollarSign className="h-4 w-4" />
                         </Link>
                         {p.estado !== 'PAGADO' && (
-                          <Link href={`/dashboard/prestamos/${p.id}?refinanciar=1`} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors" title="Refinanciar">
+                          <Link
+                            href={`/dashboard/prestamos/${p.id}?refinanciar=1`}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                            title="Refinanciar"
+                          >
                             <RefreshCw className="h-4 w-4" />
                           </Link>
                         )}
@@ -215,7 +223,6 @@ export default function PrestamosPage() {
           </table>
         </div>
 
-        {/* Pagination */}
         <div className="flex items-center justify-between border-t px-4 py-3">
           <p className="text-xs text-muted-foreground">
             Mostrando {filtered.length} préstamos

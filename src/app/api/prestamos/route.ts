@@ -1,4 +1,3 @@
-// src/app/api/prestamos/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
@@ -54,10 +53,13 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
       include: {
         cliente: {
-          select: { id: true, nombre: true, apellido: true, foto: true, telefono: true },
+          // ✅ Eliminado "foto" que no existe en el schema
+          select: { id: true, nombre: true, apellido: true, telefono: true },
         },
         vendedor: {
-          include: { usuario: { select: { nombre: true, apellido: true } } },
+          include: {
+            usuario: { select: { nombre: true, apellido: true } },
+          },
         },
       },
     }),
@@ -89,7 +91,6 @@ export async function POST(request: NextRequest) {
     const fechasCuotas = calcularFechasCuotas(fechaPrimerPago, data.numeroCuotas, data.frecuencia)
     const fechaVencimiento = fechasCuotas[fechasCuotas.length - 1]
 
-    // Obtener config de empresa para mora default
     const empresa = await db.empresa.findUnique({ where: { id: user!.empresaId! } })
 
     const prestamo = await db.$transaction(async (tx) => {
@@ -121,7 +122,6 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Crear cuotas
       await tx.cuota.createMany({
         data: fechasCuotas.map((fecha, idx) => ({
           prestamoId: p.id,
@@ -134,7 +134,6 @@ export async function POST(request: NextRequest) {
         })),
       })
 
-      // Registrar en caja
       await tx.cajaMovimiento.create({
         data: {
           empresaId: user!.empresaId!,
@@ -146,7 +145,6 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Comisión vendedor
       if (data.vendedorId) {
         const vendedor = await tx.vendedor.findUnique({ where: { id: data.vendedorId } })
         if (vendedor && vendedor.comisionVenta > 0) {
