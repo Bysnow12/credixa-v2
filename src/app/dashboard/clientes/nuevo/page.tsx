@@ -34,25 +34,20 @@ export default function NuevoClientePage() {
     setLoading(true)
     setError('')
     try {
+      const referenciasFiltradas = referencias.filter(r => r.nombre.trim() && r.telefono.trim())
       const res = await fetch('/api/clientes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          referencias: referencias.filter(r => r.nombre && r.telefono),
+          referencias: referenciasFiltradas,
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      if (!res.ok) throw new Error(data.error || 'Error al guardar')
       router.push('/dashboard/clientes')
     } catch (err: any) {
-      // If API fails (no DB configured), show demo success
-      if (err.message === 'Failed to fetch' || err.message.includes('fetch')) {
-        alert('Cliente guardado exitosamente (modo demo)')
-        router.push('/dashboard/clientes')
-      } else {
-        setError(err.message)
-      }
+      setError(err.message || 'Error de conexión')
     } finally {
       setLoading(false)
     }
